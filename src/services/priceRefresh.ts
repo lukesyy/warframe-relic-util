@@ -1,4 +1,4 @@
-import { buildNameToSlugMap, fetchAllItems, fetchLowestSellPrice } from '../api/wfm'
+import { buildNameToSlugMap, fetchAllItems, fetchSellPrices } from '../api/wfm'
 import { db, getMeta, setMeta } from '../db'
 import { invalidateItemIndex } from './itemIndex'
 import type { PriceRecord, RefreshProgress } from '../types'
@@ -41,17 +41,18 @@ export async function refreshPrices(
         current += 1
         onProgress?.({ current, total, itemName })
 
-        let lowestSell: number | null = null
+        let sellPrices: number[] = []
         try {
-          lowestSell = await fetchLowestSellPrice(slug)
+          sellPrices = await fetchSellPrices(slug)
         } catch {
-          lowestSell = null
+          sellPrices = []
         }
 
         const record: PriceRecord = {
           slug,
           itemName,
-          lowestSell,
+          lowestSell: sellPrices[0] ?? null,
+          sellPrices,
           updatedAt: Date.now(),
         }
         await db.prices.put(record)

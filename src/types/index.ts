@@ -28,6 +28,7 @@ export interface PriceRecord {
   slug: string
   itemName: string
   lowestSell: number | null
+  sellPrices: number[]
   updatedAt: number
 }
 
@@ -90,6 +91,7 @@ export interface ItemSearchParams {
   minPrice: number
   maxPrice: number
   tier?: RelicTier | ''
+  priceTier?: number
 }
 
 export interface SearchParams {
@@ -98,6 +100,7 @@ export interface SearchParams {
   tier?: RelicTier | ''
   mode: MatchMode
   itemKeyword?: string
+  priceTier?: number
 }
 
 export interface RefreshProgress {

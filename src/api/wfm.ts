@@ -41,11 +41,10 @@ export async function fetchAllItems(): Promise<WfmItemRecord[]> {
   }))
 }
 
-export async function fetchLowestSellPrice(slug: string): Promise<number | null> {
+export async function fetchSellPrices(slug: string): Promise<number[]> {
   const body = await wfmFetch<WfmTopOrdersResponse>(`/orders/item/${slug}/top`)
   const sell = body.data.sell?.filter((o) => o.visible) ?? []
-  if (sell.length === 0) return null
-  return sell[0].platinum
+  return sell.slice(0, 5).map((o) => o.platinum)
 }
 
 export function buildNameToSlugMap(items: WfmItemRecord[]): Map<string, string> {

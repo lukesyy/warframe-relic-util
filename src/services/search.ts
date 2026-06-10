@@ -41,12 +41,14 @@ function filterHitsByKeyword(hits: MatchedReward[], keyword?: string): MatchedRe
   return hits.filter((h) => matchesItemKeyword(h.itemName, h.itemNameZh, trimmed))
 }
 
-function getPriceMap(): Promise<Map<string, number>> {
+function getPriceMap(tier = 0): Promise<Map<string, number>> {
   return db.prices.toArray().then((rows) => {
     const map = new Map<string, number>()
     for (const row of rows) {
-      if (row.lowestSell != null) {
-        map.set(row.itemName, row.lowestSell)
+      const prices = row.sellPrices ?? (row.lowestSell != null ? [row.lowestSell] : [])
+      const price = prices[tier]
+      if (price != null) {
+        map.set(row.itemName, price)
       }
     }
     return map
@@ -140,7 +142,7 @@ function matchRelic(
 }
 
 export async function searchRelics(params: SearchParams): Promise<SearchResult[]> {
-  const [priceMap, nameZhMap] = await Promise.all([getPriceMap(), getItemNameZhMap()])
+  const [priceMap, nameZhMap] = await Promise.all([getPriceMap(params.priceTier ?? 0), getItemNameZhMap()])
   if (priceMap.size === 0) return []
 
   let relics = await db.relics.toArray()
@@ -189,7 +191,7 @@ export async function searchRelicsByItem(
   const keyword = params.itemKeyword.trim()
 
   const [priceMap, nameZhMap, items, relicsAll] = await Promise.all([
-    getPriceMap(),
+    getPriceMap(params.priceTier ?? 0),
     getItemNameZhMap(),
     db.items.toArray(),
     db.relics.toArray(),
@@ -275,9 +277,9 @@ export async function searchRelicsByItem(
 }
 
 export async function searchRelicRanking(
-  params: { tier?: RelicTier | '' },
+  params: { tier?: RelicTier | ''; priceTier?: number },
 ): Promise<RelicRankingResult[]> {
-  const [priceMap, nameZhMap] = await Promise.all([getPriceMap(), getItemNameZhMap()])
+  const [priceMap, nameZhMap] = await Promise.all([getPriceMap(params.priceTier ?? 0), getItemNameZhMap()])
 
   let relics = await db.relics.toArray()
   if (params.tier) {
@@ -315,12 +317,12 @@ export async function searchRelicRanking(
 }
 
 export async function searchItemValues(
-  params: { itemKeyword: string; tier?: RelicTier | '' },
+  params: { itemKeyword: string; tier?: RelicTier | ''; priceTier?: number },
 ): Promise<ItemCentricResult[]> {
   const keyword = params.itemKeyword.trim()
 
   const [priceMap, nameZhMap, items, relicsAll] = await Promise.all([
-    getPriceMap(),
+    getPriceMap(params.priceTier ?? 0),
     getItemNameZhMap(),
     db.items.toArray(),
     db.relics.toArray(),

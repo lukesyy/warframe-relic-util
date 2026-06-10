@@ -10,6 +10,7 @@ import { rarityToZh, TIER_OPTIONS } from '../utils/relicI18n'
 
 // ── 通用状态 ──
 const activeTab = ref('scanner')
+const priceTier = ref(0)
 const loading = ref(false)
 const initLoading = ref(true)
 const refreshing = ref(false)
@@ -173,6 +174,7 @@ async function handleScanSearch() {
         minPrice: scanMinPrice.value,
         maxPrice: scanMaxPrice.value,
         tier: scanTier.value,
+        priceTier: priceTier.value,
       })
       scanItemResults.value = rows
       scanItemMeta.value = meta
@@ -188,6 +190,7 @@ async function handleScanSearch() {
         minPrice: scanMinPrice.value,
         maxPrice: scanMaxPrice.value,
         tier: scanTier.value,
+        priceTier: priceTier.value,
         mode: 'any',
         itemKeyword: scanItemKeyword.value,
       })
@@ -209,7 +212,7 @@ async function handleRankSearch() {
   rankSearched.value = true
   rankResults.value = []
   try {
-    let results = await searchRelicRanking({ tier: rankTier.value })
+    let results = await searchRelicRanking({ tier: rankTier.value, priceTier: priceTier.value })
     // 按遗物名称筛选
     const kw = rankKeyword.value.trim().toLowerCase()
     if (kw) {
@@ -217,7 +220,7 @@ async function handleRankSearch() {
         r.displayName.toLowerCase().includes(kw) || r.relicName.toLowerCase().includes(kw),
       )
     }
-    rankResults.value = results
+    rankResults.value = results.slice(0, 20)
   } catch (e) {
     ElMessage.error(`搜索失败: ${e instanceof Error ? e.message : String(e)}`)
   } finally {
@@ -240,6 +243,7 @@ async function handleValueSearch() {
       valueResults.value = await searchItemValues({
         itemKeyword: valueSelected.value.join(','),
         tier: valueTier.value,
+        priceTier: priceTier.value,
       })
       if (valueResults.value.length === 0) {
         ElMessage.info('未找到匹配的物品')
@@ -249,6 +253,7 @@ async function handleValueSearch() {
       valueResults.value = await searchItemValues({
         itemKeyword: '',
         tier: valueTier.value,
+        priceTier: priceTier.value,
       })
     }
   } catch (e) {
@@ -260,8 +265,27 @@ async function handleValueSearch() {
 
 // ── tab 切换时自动查询 ──
 function handleTabChange(tab: string | number) {
+  if (tab === 'ranking' && !rankSearched.value && priceCount.value > 0) {
+    handleRankSearch()
+  }
   if (tab === 'item_value' && !valueSearched.value && priceCount.value > 0) {
     handleValueSearch()
+  }
+}
+
+// ── 主题切换 ──
+const isDark = ref(document.documentElement.getAttribute('data-theme') !== 'light')
+
+function toggleTheme() {
+  isDark.value = !isDark.value
+  if (isDark.value) {
+    document.documentElement.removeAttribute('data-theme')
+    document.documentElement.classList.add('dark')
+    localStorage.setItem('theme', 'dark')
+  } else {
+    document.documentElement.setAttribute('data-theme', 'light')
+    document.documentElement.classList.remove('dark')
+    localStorage.setItem('theme', 'light')
   }
 }
 
@@ -272,6 +296,9 @@ onMounted(init)
   <div class="scanner">
     <header class="header">
       <h1>WF 遗物价值段扫描器</h1>
+      <el-button class="theme-btn" circle @click="toggleTheme" :title="isDark ? '切换亮色' : '切换暗色'">
+        {{ isDark ? '☀️' : '🌙' }}
+      </el-button>
     </header>
 
     <!-- 状态栏 + 数据重载 -->
@@ -295,6 +322,20 @@ onMounted(init)
         正在更新: {{ refreshProgress.itemName }}
       </p>
     </el-card>
+
+    <!-- 工具栏 -->
+    <div v-if="priceCount > 0" class="toolbar">
+      <label class="tier-setting">
+        价格基准:
+        <el-select v-model="priceTier" size="small" style="width: 100px">
+          <el-option :value="0" label="卖一 (最低)" />
+          <el-option :value="1" label="卖二" />
+          <el-option :value="2" label="卖三" />
+          <el-option :value="3" label="卖四" />
+          <el-option :value="4" label="卖五" />
+        </el-select>
+      </label>
+    </div>
 
     <!-- 标签页 -->
     <el-tabs v-model="activeTab" class="main-tabs" @tab-change="handleTabChange">
@@ -474,7 +515,7 @@ onMounted(init)
         <el-card v-if="rankSearched" shadow="never" class="panel results-panel">
           <template #header>
             <div class="results-header">
-              <span>遗物排行（{{ rankResults.length }} 个遗物）</span>
+              <span>遗物排行 TOP20</span>
             </div>
           </template>
           <el-empty v-if="rankResults.length === 0" description="没有排行数据" />
@@ -517,7 +558,7 @@ onMounted(init)
 
       <!-- ═══ 物品价值 ═══ -->
       <el-tab-pane label="物品价值" name="item_value">
-        <p class="tab-subtitle">输入物品名称（逗号分隔多个），查看价格和包含的遗物</p>
+        <p class="tab-subtitle">搜索选择物品查看价格和包含的遗物，默认展示 TOP20</p>
         <el-form :inline="true" label-width="80px" @submit.prevent="handleValueSearch">
           <el-form-item label="物品名称">
             <el-select
@@ -609,6 +650,7 @@ onMounted(init)
     <footer v-if="initialized" class="footer">
       数据存于本地 IndexedDB · 价格来自
       <a href="https://warframe.market" target="_blank" rel="noreferrer">warframe.market</a>
+      · 作者 lukesyy
     </footer>
   </div>
 </template>
@@ -622,23 +664,33 @@ onMounted(init)
 
 .header {
   margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .header h1 {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 1.75rem;
-  color: #e8eaed;
+  color: var(--text-primary);
+}
+
+.theme-btn {
+  margin-left: auto;
+  font-size: 18px;
+  border: none;
+  background: var(--bg-card);
 }
 
 .panel {
   margin-bottom: 16px;
-  background: #1e1f24;
-  border: 1px solid #2d2f36;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
 }
 
 .tab-subtitle {
   margin: 0 0 16px;
-  color: #9aa0a6;
+  color: var(--text-secondary);
   font-size: 0.95rem;
 }
 
@@ -648,15 +700,30 @@ onMounted(init)
   align-items: center;
   gap: 16px;
   font-size: 0.85rem;
-  color: #9aa0a6;
+  color: var(--text-secondary);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 4px 8px;
+}
+
+.tier-setting {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
 }
 
 .status-done {
-  color: #7ee787;
+  color: var(--color-success);
 }
 
 .status-loading {
-  color: #e6a23c;
+  color: var(--color-warning);
 }
 
 .progress {
@@ -666,7 +733,7 @@ onMounted(init)
 .progress-hint {
   margin: 6px 0 0;
   font-size: 0.85rem;
-  color: #9aa0a6;
+  color: var(--text-secondary);
 }
 
 .results-panel {
@@ -682,7 +749,7 @@ onMounted(init)
 
 .item-meta {
   font-size: 0.9rem;
-  color: #9aa0a6;
+  color: var(--text-secondary);
 }
 
 .expand-content {
@@ -692,7 +759,7 @@ onMounted(init)
 .expand-title {
   margin: 0 0 8px;
   font-size: 0.85rem;
-  color: #9aa0a6;
+  color: var(--text-secondary);
 }
 
 .relic-chips {
@@ -720,7 +787,7 @@ onMounted(init)
 .relic-detail {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px dashed #3a3d45;
+  border-top: 1px dashed var(--border-color);
 }
 
 .reward-line {
@@ -731,28 +798,28 @@ onMounted(init)
 }
 
 .highlight {
-  color: #8ab4f8;
+  color: var(--color-highlight);
   font-weight: 500;
 }
 
 .muted {
-  color: #9aa0a6;
+  color: var(--text-secondary);
   font-size: 0.85rem;
 }
 
 .price {
-  color: #7ee787;
+  color: var(--color-price);
 }
 
 .footer {
   margin-top: 24px;
   text-align: center;
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .footer a {
-  color: #8ab4f8;
+  color: var(--color-link);
 }
 
 .suggestion-item {
@@ -770,13 +837,13 @@ onMounted(init)
 
 .suggestion-price {
   flex-shrink: 0;
-  color: #7ee787;
+  color: var(--color-price);
   font-size: 0.85rem;
 }
 
 .suggestion-muted {
   flex-shrink: 0;
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 0.8rem;
 }
 </style>
