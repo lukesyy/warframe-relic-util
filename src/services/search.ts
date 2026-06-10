@@ -5,12 +5,14 @@ import type {
   ItemSearchMeta,
   ItemSearchParams,
   MatchedReward,
+  RelicRankingResult,
   RelicRecord,
+  RelicTier,
   SearchParams,
   SearchResult,
   WfmItemRecord,
 } from '../types'
-import { formatRelicDisplayName, tierToZh } from '../utils/relicI18n'
+import { formatRelicDisplayName, rarityFromChance, tierToZh } from '../utils/relicI18n'
 
 const TIER_ORDER: Record<string, number> = {
   Lith: 0,
@@ -68,7 +70,7 @@ function toMatchedReward(
   return {
     itemName: reward.itemName,
     itemNameZh: nameZhMap.get(reward.itemName) ?? reward.itemName,
-    rarity: reward.rarity,
+    rarity: rarityFromChance(reward.chance),
     chance: reward.chance,
     price: priceMap.get(reward.itemName) ?? null,
   }
@@ -152,7 +154,7 @@ export async function searchRelics(params: SearchParams): Promise<SearchResult[]
     if (hit) results.push(hit)
   }
 
-  return results.sort((a, b) => (b.bestPrice ?? 0) - (a.bestPrice ?? 0))
+  return results.sort((a, b) => (a.bestPrice ?? 0) - (b.bestPrice ?? 0))
 }
 
 function resolveTargetItemNames(
@@ -237,7 +239,6 @@ export async function searchRelicsByItem(
     relics = relics.filter((r) => r.tier === params.tier)
   }
 
-  // 以物品为 key，收集包含该物品的遗物
   const itemRelicMap = new Map<string, ItemRelicEntry[]>()
 
   for (const relic of relics) {
@@ -254,8 +255,9 @@ export async function searchRelicsByItem(
         tierZh: tierToZh(relic.tier),
         relicName: relic.relicName,
         displayName: formatRelicDisplayName(relic.tier, relic.relicName),
-        rarity: reward.rarity,
+        rarity: rarityFromChance(reward.chance),
         chance: reward.chance,
+        allRewards: relic.rewards.map((r) => toMatchedReward(r, priceMap, nameZhMap)),
       })
     }
   }
@@ -275,8 +277,129 @@ export async function searchRelicsByItem(
     })
   }
 
-  // 按价格降序排列
-  results.sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
+  // 按价格从低到高排列
+  results.sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
 
   return { results, meta }
+}
+
+export async function searchRelicRanking(
+  params: { tier?: RelicTier | '' },
+): Promise<RelicRankingResult[]> {
+  const [priceMap, nameZhMap] = await Promise.all([getPriceMap(), getItemNameZhMap()])
+
+  let relics = await db.relics.toArray()
+  if (params.tier) {
+    relics = relics.filter((r) => r.tier === params.tier)
+  }
+
+  const results: RelicRankingResult[] = []
+  for (const relic of relics) {
+    const allRewards = relic.rewards.map((r) => toMatchedReward(r, priceMap, nameZhMap))
+    const expectedValue = allRewards.reduce(
+      (sum, r) => sum + (r.price ?? 0) * r.chance / 100,
+      0,
+    )
+    if (expectedValue === 0) continue
+
+    const bestReward = allRewards.reduce((best, r) => {
+      const bestVal = (best.price ?? 0) * best.chance
+      const rVal = (r.price ?? 0) * r.chance
+      return rVal > bestVal ? r : best
+    }, allRewards[0]!)
+
+    results.push({
+      key: relic.key,
+      tier: relic.tier,
+      tierZh: tierToZh(relic.tier),
+      relicName: relic.relicName,
+      displayName: formatRelicDisplayName(relic.tier, relic.relicName),
+      expectedValue,
+      bestReward,
+      allRewards,
+    })
+  }
+
+  return results.sort((a, b) => b.expectedValue - a.expectedValue)
+}
+
+export async function searchItemValues(
+  params: { itemKeyword: string; tier?: RelicTier | '' },
+): Promise<ItemCentricResult[]> {
+  const keyword = params.itemKeyword.trim()
+
+  const [priceMap, nameZhMap, items, relicsAll] = await Promise.all([
+    getPriceMap(),
+    getItemNameZhMap(),
+    db.items.toArray(),
+    db.relics.toArray(),
+  ])
+
+  const targetNames = new Set<string>()
+
+  if (!keyword) {
+    // 空关键词：取价格最高的前 20 个有价格的物品
+    const priced = [...priceMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 20)
+    for (const [name] of priced) {
+      targetNames.add(name)
+    }
+  } else {
+    // 按逗号分割，每个分段独立匹配，联合结果
+    const segments = keyword.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
+    for (const seg of segments) {
+      const resolved = resolveTargetItemNames(seg, items, nameZhMap)
+      for (const name of resolved) {
+        targetNames.add(name)
+      }
+    }
+  }
+
+  if (targetNames.size === 0) return []
+
+  let relics = relicsAll
+  if (params.tier) {
+    relics = relics.filter((r) => r.tier === params.tier)
+  }
+
+  const itemRelicMap = new Map<string, ItemRelicEntry[]>()
+
+  for (const relic of relics) {
+    for (const reward of relic.rewards) {
+      if (!targetNames.has(reward.itemName)) continue
+      let entries = itemRelicMap.get(reward.itemName)
+      if (!entries) {
+        entries = []
+        itemRelicMap.set(reward.itemName, entries)
+      }
+      entries.push({
+        key: relic.key,
+        tier: relic.tier,
+        tierZh: tierToZh(relic.tier),
+        relicName: relic.relicName,
+        displayName: formatRelicDisplayName(relic.tier, relic.relicName),
+        rarity: rarityFromChance(reward.chance),
+        chance: reward.chance,
+        allRewards: relic.rewards.map((r) => toMatchedReward(r, priceMap, nameZhMap)),
+      })
+    }
+  }
+
+  const results: ItemCentricResult[] = []
+  for (const [itemName, relicEntries] of itemRelicMap) {
+    relicEntries.sort((a, b) => {
+      const tierDiff = (TIER_ORDER[a.tier] ?? 99) - (TIER_ORDER[b.tier] ?? 99)
+      if (tierDiff !== 0) return tierDiff
+      return a.relicName.localeCompare(b.relicName, undefined, { numeric: true })
+    })
+    results.push({
+      itemName,
+      itemNameZh: nameZhMap.get(itemName) ?? itemName,
+      price: priceMap.get(itemName) ?? null,
+      relics: relicEntries,
+    })
+  }
+
+  return results.sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
 }

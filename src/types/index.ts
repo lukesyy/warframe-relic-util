@@ -1,7 +1,7 @@
 export type RelicTier = 'Lith' | 'Meso' | 'Neo' | 'Axi' | 'Requiem'
 export type RewardRarity = 'Common' | 'Uncommon' | 'Rare'
 export type MatchMode = 'rare_only' | 'any' | 'highest'
-export type QueryMode = 'price_range' | 'by_item'
+export type QueryMode = 'price_range' | 'by_item' | 'ranking' | 'item_value'
 
 export interface RelicReward {
   itemName: string
@@ -58,6 +58,7 @@ export interface ItemRelicEntry {
   displayName: string
   rarity: RewardRarity
   chance: number
+  allRewards: MatchedReward[]
 }
 
 export interface ItemCentricResult {
@@ -65,6 +66,17 @@ export interface ItemCentricResult {
   itemNameZh: string
   price: number | null
   relics: ItemRelicEntry[]
+}
+
+export interface RelicRankingResult {
+  key: string
+  tier: RelicTier
+  tierZh: string
+  relicName: string
+  displayName: string
+  expectedValue: number
+  bestReward: MatchedReward | null
+  allRewards: MatchedReward[]
 }
 
 export interface ItemSearchMeta {

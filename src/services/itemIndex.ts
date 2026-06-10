@@ -10,6 +10,10 @@ export interface ItemSuggestion {
 
 let cachedSuggestions: ItemSuggestion[] | null = null
 
+export async function getAllItemOptions(): Promise<ItemSuggestion[]> {
+  return buildSuggestionIndex()
+}
+
 export function invalidateItemIndex(): void {
   cachedSuggestions = null
 }
