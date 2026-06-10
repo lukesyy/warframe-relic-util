@@ -1,8 +1,6 @@
 import type { WfmItemRecord } from '../types'
 
-const BASE = import.meta.env.DEV
-  ? '/api/wfm/v2'
-  : 'https://api.warframe.market/v2'
+const BASE = '/api/wfm/v2'
 const HEADERS = {
   Language: 'zh-hans',
   Platform: 'pc',
