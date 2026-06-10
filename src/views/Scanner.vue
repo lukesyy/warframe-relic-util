@@ -289,11 +289,70 @@ function toggleTheme() {
   }
 }
 
-onMounted(init)
+// ── 首次登录引导 ──
+const showGuide = ref(false)
+const guideStep = ref(0)
+const guideSlides = [
+  {
+    icon: '🥜',
+    title: '欢迎使用 WF 遗物扫描器',
+    desc: '帮你快速找到值得开的遗物，方便组队开核桃！首次使用请先点击「数据重载」获取市场数据。',
+  },
+  {
+    icon: '🔍',
+    title: '遗物扫描',
+    desc: '输入白金价格区间，找出奖励落在该区间的遗物。支持按遗物查询和按物品查询两种模式。',
+  },
+  {
+    icon: '🏆',
+    title: '遗物排行',
+    desc: '按期望白金价值排列所有遗物，一眼看出哪个最值得开。支持按遗物名称和类型筛选。',
+  },
+  {
+    icon: '💰',
+    title: '物品价值',
+    desc: '搜索物品查看市场价和包含的遗物。支持多选查询，默认展示价值 TOP20。',
+  },
+  {
+    icon: '⚙️',
+    title: '实用功能',
+    desc: '顶部可切换价格基准（卖一～卖五）、亮暗主题。所有数据缓存在本地，无需注册登录。',
+  },
+]
+
+function closeGuide() {
+  showGuide.value = false
+  localStorage.setItem('guide_done', '1')
+}
+
+onMounted(() => {
+  if (!localStorage.getItem('guide_done')) {
+    showGuide.value = true
+  }
+  init()
+})
 </script>
 
 <template>
   <div class="scanner">
+    <!-- 首次登录引导弹窗 -->
+    <el-dialog v-model="showGuide" width="460px" :show-close="false" :close-on-click-modal="false" class="guide-dialog" align-center>
+      <div class="guide-content">
+        <div class="guide-icon">{{ guideSlides[guideStep].icon }}</div>
+        <h3 class="guide-title">{{ guideSlides[guideStep].title }}</h3>
+        <p class="guide-desc">{{ guideSlides[guideStep].desc }}</p>
+        <div class="guide-dots">
+          <span v-for="(_, i) in guideSlides" :key="i" :class="['guide-dot', { active: i === guideStep }]" />
+        </div>
+      </div>
+      <template #footer>
+        <div class="guide-footer">
+          <el-button v-if="guideStep > 0" @click="guideStep--">上一步</el-button>
+          <el-button v-if="guideStep < guideSlides.length - 1" type="primary" @click="guideStep++">下一步</el-button>
+          <el-button v-else type="primary" @click="closeGuide">开始使用</el-button>
+        </div>
+      </template>
+    </el-dialog>
     <header class="header">
       <h1>WF 遗物价值段扫描器</h1>
       <el-button class="theme-btn" circle @click="toggleTheme" :title="isDark ? '切换亮色' : '切换暗色'">
@@ -845,5 +904,54 @@ onMounted(init)
   flex-shrink: 0;
   color: var(--text-muted);
   font-size: 0.8rem;
+}
+
+.guide-content {
+  text-align: center;
+  padding: 12px 0 4px;
+}
+
+.guide-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.guide-title {
+  margin: 0 0 12px;
+  font-size: 1.2rem;
+  color: var(--text-primary);
+}
+
+.guide-desc {
+  margin: 0 0 20px;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.guide-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.guide-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-color);
+  transition: all 0.2s;
+}
+
+.guide-dot.active {
+  width: 24px;
+  border-radius: 4px;
+  background: #409eff;
+}
+
+.guide-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 </style>
