@@ -182,15 +182,6 @@ function resolveTargetItemNames(
   return names
 }
 
-function relicContainsItem(relic: RelicRecord, targetNames: Set<string>): RelicRecord['rewards'] {
-  return relic.rewards.filter((r) => targetNames.has(r.itemName))
-}
-
-function sortRelicsByTier(a: SearchResult, b: SearchResult): number {
-  const tierDiff = (TIER_ORDER[a.tier] ?? 99) - (TIER_ORDER[b.tier] ?? 99)
-  if (tierDiff !== 0) return tierDiff
-  return a.relicName.localeCompare(b.relicName, undefined, { numeric: true })
-}
 
 export async function searchRelicsByItem(
   params: ItemSearchParams,

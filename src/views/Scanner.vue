@@ -5,7 +5,7 @@ import { queryItemSuggestions, getAllItemOptions, type ItemSuggestion } from '..
 import { loadRelicsIntoDb, loadWfmItemsIntoDb } from '../services/relicLoader'
 import { getLastRefreshTime, getPriceCount, refreshPrices } from '../services/priceRefresh'
 import { searchRelics, searchRelicsByItem, searchRelicRanking, searchItemValues } from '../services/search'
-import type { ItemCentricResult, ItemRelicEntry, ItemSearchMeta, MatchMode, RelicRankingResult, RelicTier, SearchResult } from '../types'
+import type { ItemCentricResult, ItemRelicEntry, ItemSearchMeta, RelicRankingResult, RelicTier, SearchResult } from '../types'
 import { rarityToZh, TIER_OPTIONS } from '../utils/relicI18n'
 
 // ── 通用状态 ──
@@ -188,7 +188,7 @@ async function handleScanSearch() {
         minPrice: scanMinPrice.value,
         maxPrice: scanMaxPrice.value,
         tier: scanTier.value,
-        mode: 'any' as MatchMode,
+        mode: 'any',
         itemKeyword: scanItemKeyword.value,
       })
     }
