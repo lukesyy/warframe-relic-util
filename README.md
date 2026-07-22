@@ -1,6 +1,7 @@
 # WF 遗物价值段扫描器
 
 输入白金价格区间，找出稀有奖励落在该区间的 Warframe 遗物，方便组队开核桃。
+<img width="1438" height="974" alt="1" src="https://github.com/user-attachments/assets/902802e7-40c6-48f3-9124-aa7d60dc0ba8" />
 
 ## 功能
 
